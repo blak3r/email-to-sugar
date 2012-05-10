@@ -1,0 +1,12 @@
+After enabling, you can BCC a designated email address when emailing your leads/contacts and it will automatically archive and appear in the appropriate activity history subpanel(s). This project provides similar functionality as Email-To-Salesforce.
+
+
+Available on SugarForge
+========================
+http://www.sugarforge.org/projects/email-to-sugar
+(Documentation is also there)
+
+Usage
+=====
+
+Run email_to_sugar.php from a scheduled task in sugar regularly.  
