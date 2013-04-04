@@ -72,14 +72,6 @@
 
 	//--------------[ DO NOT MODIFY ANYTHING BELOW THIS LINE ]------------------//
 		
-	// ----- RELEASE EXCLUDE START -------
-	// Useful if you extend this class to use soap or to invoke a logic hook... You'll have to remove duplicate methods from bottom.
-	define('sugarEntry', TRUE); 
-	chdir('sugarcrm');
-	require_once('include/entryPoint.php');
-	$GLOBALS['log'] =& LoggerManager::getLogger('SugarCRM');
-	error_reporting(E_ALL ^ E_NOTICE); //ignore notices
-	// ^^^^^^^ RELEASE EXCLUDE END ^^^^^^^^^^
 		
 	$is_cli = php_sapi_name() == "cli";
 	
@@ -116,7 +108,9 @@ Select emails.id, emails.name, emails.date_sent, emails_text.description, emails
     ON emails_email_addr_rel.email_address_id = email_addresses.id
   join emails_text
     ON emails_text.email_id = emails.id
-WHERE inbound_email.name='$MAILBOX_NAME' and emails.status != 'Archived' 
+WHERE inbound_email.name='$MAILBOX_NAME' and emails.status != 'Archived'  and emails.deleted != 1 and inbound_email.deleted != 1
+	and emails_email_addr_rel.deleted != 1 and email_addresses.deleted != 1
+	and emails_text.deleted !=1
       AND emails_email_addr_rel.address_type='to' AND email_addresses.email_address_caps like '%$MAILBOX_EMAIL_ADDR%';
 QUERY8;
 
@@ -158,7 +152,7 @@ select email_addresses.id, email_addr_bean_rel.bean_id, email_addr_bean_rel.bean
 	from email_addresses
 	join email_addr_bean_rel
 		on email_addresses.id = email_addr_bean_rel.email_address_id
-	where email_address_caps='$newTo';
+	where email_address_caps='$newTo' and email_addr_bean_rel.deleted != 1 and email_addresses.deleted != 1;
 QUERY11;
 	
 			$bean_info = mxsql_query_get_first_result( $query11 );
@@ -205,7 +199,7 @@ $query1=<<<QUERY1
 Select $use_top emails.id, emails.name
 FROM 
 inbound_email join emails ON inbound_email.id = emails.mailbox_id
-WHERE inbound_email.name='$MAILBOX_NAME' and emails.status != 'Archived'
+WHERE inbound_email.name='$MAILBOX_NAME' and emails.status != 'Archived' and emails.deleted != 1 and inbound_email.deleted !=1
 ORDER BY emails.date_sent DESC $use_limit;
 QUERY1;
 	
@@ -236,7 +230,10 @@ FROM emails
   LEFT OUTER JOIN accounts_contacts
     ON email_addr_bean_rel.bean_id = accounts_contacts.contact_id
 WHERE emails.id = '$email_id' and (emails_email_addr_rel.address_type='to' OR emails_email_addr_rel.address_type='cc') AND
-      email_addresses.email_address_caps not like '%$IGNORE_DOMAIN1%' AND email_addresses.email_address_caps not like '%$IGNORE_DOMAIN2%'
+      email_addresses.email_address_caps not like '%$IGNORE_DOMAIN1%' AND email_addresses.email_address_caps not like '%$IGNORE_DOMAIN2%' AND
+      email_addr_bean_rel.deleted != 1 and emails_email_addr_rel.deleted !=1 and email_addresses.deleted !=1
+      and emails.deleted != 1 
+ and if(isnull(accounts_contacts.deleted),0,accounts_contacts.deleted) != 1 -- necessary as by left join (if it is a user) the field can be undefined
 QUERY2;
 
 		//print "(Debug) $query2\n\n";
@@ -260,7 +257,11 @@ FROM emails
     ON emails_email_addr_rel.email_address_id = email_addr_bean_rel.email_address_id
   join email_addresses
     ON email_addresses.id = emails_email_addr_rel.email_address_id
-WHERE emails.id = '$email_id';
+WHERE emails.id = '$email_id'
+and email_addresses.deleted  !=1 
+and emails_email_addr_rel.deleted !=1 
+and email_addr_bean_rel.deleted != 1 
+and emails.deleted != 1;
 ALLEMAILS;
 			$temp33 = mxsql_query_wrapper( $qryAllEmailAddrs );
 			while( $addr = mxsql_fetch_array($temp33) ) {
@@ -283,7 +284,10 @@ FROM emails
     ON emails_email_addr_rel.email_address_id = email_addr_bean_rel.email_address_id
   join users
     ON email_addr_bean_rel.bean_id = users.id
-WHERE emails.id = '$email_id' and (emails_email_addr_rel.address_type='from') and users.is_group='0';
+WHERE emails.id = '$email_id' 
+and (emails_email_addr_rel.address_type='from') and users.is_group='0' 
+and emails_email_addr_rel.deleted != 1 and email_addr_bean_rel.deleted != 1 
+and users.deleted != 1 and emails.deleted !=1 and emails_email_addr_rel.deleted != 1;
 QUERYFromId;
 
 			$temp1 = mxsql_query_wrapper($queryFromId);
@@ -302,43 +306,6 @@ QUERYFromId;
 			
 				log_entry("Archived email $email_id sent by:" . $assignedUserArr['user_name'] . "\n", $SUCCESS_LOG_FILE_PATH);
 			
-				// ---------------[ RELEASE EXCLUDE START ]---------------------//
-				//----------[ Last Activity Related Snippet --------------------//
-				
-				while( $recipient = mxsql_fetch_array($related_bean_result) ) {		
-					$temp_module = $recipient['bean_module'];
-					$temp_id = $recipient['bean_id'];
-					$address = $recipient['email_address_caps'];
-					
-					print_wrapper("    - Last Activity Update for $address ($temp_module)\n" );
-					
-					if( $recipient['account_id'] ) {
-						$temp_module = "Accounts";
-						$temp_id = $recipient['account_id'];
-						print_wrapper("   - Calling last activity hook for account\n");
-					}
-			
-					$logic_bean = (object) array( 'parent_id' => $temp_id, 
-					                      'parent_type'=> $temp_module,  
-										  'object_name'=>'Email',
-										  'date_start'=> $recipient['date_sent'] );
-					
-					
-					require_once('sugarcrm/custom/LastActivityDateHook.php');
-					$hookClass = new LastActivityDateHook();
-					$hookClass->NewActivity($logic_bean, 'email-to-sugar', NULL);	
-				}
-					
-				$dbcon = mxsql_connect($db_host_name,$db_user_name,$db_password);
-				if (!$dbcon)
-				 {
-					print_wrapper('Could not connect: ' . mxsql_error());
-					die('Could not connect: ' . mxsql_error());
-				 }
-
-				mxsql_select_db($db_name, $dbcon);
-				
-				// ^^^^^^^^^^^^^^ ---- RELEASE EXCLUDE END ------ ^^^^^^^^^^^^^^^^^^^ // 
 				
 // This query makes use of inner joins to find get the account_id's for any of the contacts associated with this email.
 $query3=<<<QUERY3
@@ -350,8 +317,13 @@ FROM emails
     ON emails_email_addr_rel.email_address_id = email_addr_bean_rel.email_address_id
   join accounts_contacts 
     ON email_addr_bean_rel.bean_id = accounts_contacts.contact_id
-WHERE emails.id = '$email_id' and (emails_email_addr_rel.address_type='to' OR emails_email_addr_rel.address_type='cc');
+WHERE emails.id = '$email_id' and (emails_email_addr_rel.address_type='to' OR emails_email_addr_rel.address_type='cc')
+AND accounts_contacts.deleted != 1 and email_addr_bean_rel.deleted != 1 
+and emails_email_addr_rel.deleted != 1 and accounts_contacts.deleted  != 1
+and emails.deleted != 1
+;
 QUERY3;
+;
 				$accounts = mxsql_query_wrapper( $query3 );
 				while( $account = mxsql_fetch_array($accounts) ) {
 					
@@ -363,7 +335,7 @@ QUERY3;
 				// This query adds a new row in the emails_beans to link the email to the Account (if we didn't do this only the Contact is linked)
 				// NEW in version 1.2 this is only called once per account.
 $query4a=<<<QUERY4a
-select id from emails_beans where email_id='$email_id' AND bean_id='$bean_id';
+select id from emails_beans where email_id='$email_id' AND bean_id='$bean_id' and email_beans.deleted != 1 ;
 QUERY4a;
 
 $query4=<<<QUERY4
@@ -421,6 +393,9 @@ function print_wrapper( $str ) {
 	}
 	
 }
+
+
+
 
 // Wrapper method which runs a query and returns the result of the first row, 
 // if 2nd parameter is specified only that column is returned otherwise the entire row is returned.
@@ -530,7 +505,6 @@ function log_entry( $str, $file = "default" ) {
 
 // ---- The following methods were copied from a sugarcrm utils.php class -----//
 
-/* RELEASE INCLUDE START
 function create_guid()
 {
     $microTime = microtime();
