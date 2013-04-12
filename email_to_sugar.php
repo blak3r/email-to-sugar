@@ -399,9 +399,9 @@ QUERY4;
 //--------------------[ PRIVATE UTILITIY METHODS ]-------------------------//
 
 function extract_from_email($string){
- // preg_match("/From.*\w+([\._a-zA-Z0-9-]+@[\._a-zA-Z0-9-]+)/i", $string, $matches);
-    // regex fixed by Chris Coleman.  12 April 2013.  "Email To Sugar" project on SugarForge.
-    preg_match('/(From|Von).*\w+[\._A-Z0-9-]+@[\._A-Z0-9-]+/i', $string, $matches);
+  // preg_match("/From.*\w+([\._a-zA-Z0-9-]+@[\._a-zA-Z0-9-]+)/i", $string, $matches);
+  // regex fixed by Chris Coleman, chris@espacenetworks.com - 12 April 2013, for "Email To Sugar" project on SugarForge.
+  preg_match('/(From|Von).*\w+[\._A-Z0-9-]+@[\._A-Z0-9-]+/i', $string, $matches);
   preg_match('/[\._a-z0-9-]+@[\._a-z0-9-]+/i', $matches[0], $matches);
   return $matches[0];
 }
