@@ -106,17 +106,17 @@
 // First we go through and convert any emails that are sent "TO" the crm@alertus.com
 // These emails are intended to be archived (typically a customer reply)...  
 $query8=<<<QUERY8
-Select emails.id, emails.name, emails.date_sent, emails_text.description, emails_text.description_html, emails_email_addr_rel.email_address_id, email_addresses.email_address_caps, emails_email_addr_rel.address_type
+Select emails.id, emails.name, emails.deleted, emails.date_sent, emails_text.description, emails_text.description_html, emails_email_addr_rel.email_address_id, email_addresses.email_address_caps, emails_email_addr_rel.address_type
   FROM inbound_email
   join emails
-	ON inbound_email.id = emails.mailbox_id
+        ON inbound_email.id = emails.mailbox_id
   join emails_email_addr_rel
-    ON emails.id = emails_email_addr_rel.email_id 
+    ON emails.id = emails_email_addr_rel.email_id
   join email_addresses
     ON emails_email_addr_rel.email_address_id = email_addresses.id
   join emails_text
     ON emails_text.email_id = emails.id
-WHERE inbound_email.name='$MAILBOX_NAME' and emails.status != 'Archived' 
+WHERE inbound_email.name='$MAILBOX_NAME' and emails.status != 'Archived' and emails.deleted='0'
       AND emails_email_addr_rel.address_type='to' AND email_addresses.email_address_caps like '%$MAILBOX_EMAIL_ADDR%';
 QUERY8;
 
@@ -202,10 +202,10 @@ else
 	$use_top = 'TOP ' . $LIMIT_PROCESSING_TO;
 
 $query1=<<<QUERY1
-Select $use_top emails.id, emails.name
-FROM 
+Select $use_top emails.id, emails.name, emails.deleted
+FROM
 inbound_email join emails ON inbound_email.id = emails.mailbox_id
-WHERE inbound_email.name='$MAILBOX_NAME' and emails.status != 'Archived'
+WHERE inbound_email.name='$MAILBOX_NAME' and emails.status != 'Archived' and emails.deleted='0'
 ORDER BY emails.date_sent DESC $use_limit;
 QUERY1;
 	
@@ -398,9 +398,10 @@ QUERY4;
 //--------------------[ PRIVATE UTILITIY METHODS ]-------------------------//
 
 function extract_from_email($string){
- // preg_match("/From.*\w+([\._a-zA-Z0-9-]+@[\._a-zA-Z0-9-]+)/i", $string, $matches);
-  preg_match("/(From|Von).*\w+[\._a-zA-Z0-9-]+@[\._a-zA-Z0-9-]+/i", $string, $matches);
-  preg_match("/[\._a-zA-Z0-9-]+@[\._a-zA-Z0-9-]+/i", $matches[0], $matches);
+  // preg_match("/From.*\w+([\._a-zA-Z0-9-]+@[\._a-zA-Z0-9-]+)/i", $string, $matches);
+  // regex fixed by Chris Coleman, chris@espacenetworks.com - 12 April 2013, for "Email To Sugar" project on SugarForge.
+  preg_match('/(From|Von|Afzender|Van|De).*\w+[\._A-Z0-9-]+@[\._A-Z0-9-]+/i', $string, $matches);
+  preg_match('/[\._a-z0-9-]+@[\._a-z0-9-]+/i', $matches[0], $matches);
   return $matches[0];
 }
 
