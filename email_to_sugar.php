@@ -1,5 +1,4 @@
 <?php
-
 /**
  * email_to_sugar.php
  *
